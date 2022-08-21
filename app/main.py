@@ -1,3 +1,4 @@
+import requests
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from . import models, schemas
@@ -17,12 +18,25 @@ def get_db():
 
 
 @app.post("/company", response_model=schemas.Company)
-def create_company(company: schemas.Company, db: Session = Depends(get_db)):
-    company = models.Company(
-        uniq_key=company.uniq_key, company_name=company.company_name
-    )
-    db.add(company)
-    db.commit()
+def create_company(
+    uniq_key: str = None, company_name: str = None, db: Session = Depends(get_db)
+):
+
+    params = {
+        "apbaType": [],
+        "jidtDptm": [],
+        "area": [],
+        "apbaId": "",
+        "reportFormRootNo": "10101",
+    }
+    r = requests.post("https://www.alio.go.kr/item/itemOrganListJung.json", json=params)
+
+    result = r.json()
+
+    for data in result["data"]["apbaList"]:
+        company = models.Company(uniq_key=data["apbaId"], company_name=data["apbaNa"])
+        db.add(company)
+        db.commit()
 
     return company
 
