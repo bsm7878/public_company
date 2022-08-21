@@ -1,54 +1,71 @@
-from seven_dwwarfs import Grumpy, Happy, Sleepy, Bashful, Sneezy, Dopey, Doc
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from . import models, schemas
+from .database import SessionLocal, engine
 
-x = {"a": 37, "b": 42, "c": 927}
+models.Base.metadata.create_all(bind=engine)
 
-x = 123456789.123456789e123456789
+app = FastAPI()
 
-if (
-    very_long_variable_name is not None
-    and very_long_variable_name.field > 0
-    or very_long_variable_name.is_debug
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@app.post("/company", response_model=schemas.Company)
+def create_company(company: schemas.Company, db: Session = Depends(get_db)):
+    company = models.Company(
+        uniq_key=company.uniq_key, company_name=company.company_name
+    )
+    db.add(company)
+    db.commit()
+
+    return company
+
+
+@app.post("/company/info", response_model=schemas.CompanyInfo)
+def create_company_info(
+    company_info: schemas.CompanyInfo, db: Session = Depends(get_db)
 ):
-    z = "hello " + "world"
-else:
-    world = "world"
-    a = "hello {}".format(world)
-    f = rf"hello {world}"
-if this and that:
-    y = "hello " "world"  # FIXME: https://github.com/python/black/issues/26
 
+    # 공공기관에 등록되어 있지 않을 때 예외 처리
+    existed_company = (
+        db.query(models.Company)
+        .filter_by(uniq_key=company_info.company_uniq_key)
+        .first()
+    )
 
-class Foo(object):
-    def f(self):
-        return 37 * -2
+    if not existed_company:
+        raise HTTPException(status_code=400, detail="등록되지 않은 공공기관입니다.")
 
-    def g(self, x, y=42):
-        return y
+    # 이미 공공기관의 정보가 존재할 때 예외 처리
+    register_company = (
+        db.query(models.CompanyInfo)
+        .filter_by(company_uniq_key=company_info.company_uniq_key)
+        .first()
+    )
 
+    if register_company:
+        raise HTTPException(status_code=400, detail="공공기관의 정보가 존재합니다.")
 
-def f(a: List[int]):
-    return 37 - a[42 - u : y**3]
+    company_info = models.CompanyInfo(
+        company_uniq_key=company_info.company_uniq_key,
+        img_url=company_info.img_url,
+        foundation=company_info.foundation,
+        purpose=company_info.purpose,
+        type=company_info.type,
+        authority=company_info.authority,
+        homepage=company_info.homepage,
+        location=company_info.location,
+        history=company_info.history,
+        role=company_info.role,
+        goal=company_info.goal,
+    )
+    db.add(company_info)
+    db.commit()
 
-
-def very_important_function(
-    template: str,
-    *variables,
-    file: os.PathLike,
-    debug: bool = False,
-):
-    """Applies `variables` to the `template` and writes to `file`."""
-    with open(file, "w") as f:
-        ...
-
-
-regular_formatting = [
-    0,
-    1,
-    2,
-    3,
-    4,
-    5,
-    6,
-    7,
-    8,
-]
+    return company_info
